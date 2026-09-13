@@ -1,0 +1,73 @@
+version: '3.8'
+
+# Full data stack for the ICU Ventilator Digital Twin (PDF Section 5).
+# Run on the Raspberry Pi 5 (or any host): docker compose up -d
+#
+# Services:
+#   mosquitto  - MQTT broker (port 1883) — receives sensor + twin topics
+#   telegraf   - pulls MQTT topics and writes to InfluxDB (optional shortcut)
+#   influxdb   - time-series store (port 8086)
+#   grafana    - dashboards (port 3000)
+#
+# First run: visit http://localhost:8086 to set admin user + org + bucket
+# ("icu" + "ventilator" by convention). Generate an API token and export
+# INFLUX_TOKEN in the shell that runs run_twin.py.
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: vent-mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"   # websockets for browser MQTT clients
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+
+  telegraf:
+    image: telegraf:1.30
+    container_name: vent-telegraf
+    restart: unless-stopped
+    depends_on: [mosquitto, influxdb]
+    volumes:
+      - ./telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    environment:
+      - INFLUX_TOKEN=${INFLUX_TOKEN}
+      - INFLUX_ORG=icu
+      - INFLUX_BUCKET=ventilator
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: vent-influx
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUX_PASSWORD:-change-me}
+      - DOCKER_INFLUXDB_INIT_ORG=icu
+      - DOCKER_INFLUXDB_INIT_BUCKET=ventilator
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUX_TOKEN:-dev-token-change-me}
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: vent-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on: [influxdb]
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+volumes:
+  mosquitto_data:
+  mosquitto_log:
+  influxdb_data:
+  influxdb_config:
+  grafana_data:
