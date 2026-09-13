@@ -1,1 +1,22 @@
+__pycache__/
+*.py[cod]
+*$py.class
 
+.venv/
+venv/
+env/
+
+.env
+
+data/raw/
+data/processed/
+
+models/*.joblib
+models/*.keras
+models/*.pkl
+models/*.h5
+
+*.log
+
+.DS_Store
+Thumbs.db
